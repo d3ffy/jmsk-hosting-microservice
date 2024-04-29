@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 import jwt
 from jwt import PyJWTError
@@ -9,6 +9,7 @@ from bson import ObjectId
 import os
 from dotenv import load_dotenv
 from typing import Optional
+from datetime import datetime, timedelta
 
 load_dotenv()
 MONGODB_URI = os.getenv('MONGODB_URI')
@@ -19,10 +20,14 @@ db = client['jmsk-hosting-db']
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-class Service(BaseModel):
+class ServiceCart(BaseModel):
     serviceId: str
     price: float
     duration: Optional[int] = 30
+
+class Service(BaseModel):
+    serviceId: str
+    duration: Optional[datetime] = datetime.utcnow() + timedelta(days=30)
 
 app = FastAPI()
 app.add_middleware(
@@ -47,10 +52,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
 async def add_service_to_user(service: Service, user_id: str = Depends(get_current_user)):
     user_oid = ObjectId(user_id)
     service_dict = service.dict(by_alias=True)
-    service_dict['_id'] = ObjectId()  # Ensure the service has a unique MongoDB ObjectId
+    service_dict['_id'] = ObjectId()
     updated_user = await db.user_db.update_one(
         {"_id": user_oid},
-        {"$push": {"services": service_dict}}
+        {"$push": {"services": service_dict},
+         "$set": {"duration": service.duration}}  # Set the duration in the document
     )
     if updated_user.modified_count == 1:
         return service
@@ -77,8 +83,8 @@ async def remove_service_from_user(service_id: str, user_id: str = Depends(get_c
         return {"message": "Service removed successfully"}
     raise HTTPException(status_code=404, detail="Service not found or already removed")
 
-@app.post("/users/cart/", response_model=Service)
-async def add_item_to_cart(item: Service, user_id: str = Depends(get_current_user)):
+@app.post("/users/cart/", response_model=ServiceCart)
+async def add_item_to_cart(item: ServiceCart, user_id: str = Depends(get_current_user)):
     user_oid = ObjectId(user_id)
     item_dict = item.dict(by_alias=True)
     item_dict['_id'] = ObjectId()  # Ensure the item has a unique MongoDB ObjectId
