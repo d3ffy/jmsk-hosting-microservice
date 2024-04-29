@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from fastapi.middleware.cors import CORSMiddleware
 import jwt
 from jwt import PyJWTError
 from pydantic import BaseModel
@@ -24,6 +25,13 @@ class Service(BaseModel):
     duration: Optional[int] = 30
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     try:
@@ -102,3 +110,14 @@ async def remove_item_from_cart(item_id: str, user_id: str = Depends(get_current
     if result.modified_count == 1:
         return {"message": "Item removed successfully"}
     raise HTTPException(status_code=404, detail="Item not found or already removed")
+
+@app.get("/getAllUsers")
+async def get_all_users():
+    users = await db.user_db.find().to_list(None)
+    return [{
+        "userId": user["_id"].__str__(),
+        "username": user["username"],
+        "email": user["email"],
+        } 
+        for user in users
+    ]
