@@ -1,0 +1,6 @@
+fastapi
+motor
+passlib
+python-dotenv
+pyjwt
+uvicorn

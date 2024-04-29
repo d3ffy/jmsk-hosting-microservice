@@ -1,13 +1,13 @@
-from fastapi import FastAPI, HTTPException, Response, Depends, status
+from fastapi import FastAPI, HTTPException, Response, Depends, status, Form
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pymongo import MongoClient
 from passlib.context import CryptContext
-import jwt
+import jwt, os
 from datetime import datetime, timedelta
 from pydantic import BaseModel
-import os
 from dotenv import load_dotenv
 from typing import Optional
+from fastapi.middleware.cors import CORSMiddleware
  
 # Configuration
 load_dotenv()
@@ -17,6 +17,13 @@ ACCESS_SECRET_TOKEN = os.getenv("ACCESS_SECRET_TOKEN")
 ACCESS_TOKEN_EXPIRE_MINUTES = 10
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 client = MongoClient(MONGO_DB_URI)
 db = client['jmsk-hosting-db']
 users_collection = db.user_db
@@ -58,8 +65,8 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 #form req
 @app.post("/login", response_model=str)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+async def login_for_access_token(username:str=Form(...), password:str=Form(...)):
+    user = authenticate_user(username, password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -68,7 +75,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user["email"]}, expires_delta=access_token_expires
+        data={"sub": str(user["_id"])}, expires_delta=access_token_expires
     )
     response = Response(content="Login successful", media_type="application/json")
     response.set_cookie(key="accessToken", value=access_token, httponly=True)
