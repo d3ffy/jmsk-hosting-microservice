@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, Response, Depends, status, Form
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
 from pymongo import MongoClient
 from passlib.context import CryptContext
-import jwt, os
+import jwt, os, bcrypt
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -14,7 +15,7 @@ load_dotenv()
 MONGO_DB_URI = os.getenv("MONGODB_URI")
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_SECRET_TOKEN = os.getenv("ACCESS_SECRET_TOKEN")
-ACCESS_TOKEN_EXPIRE_MINUTES = 10
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 app = FastAPI()
 app.add_middleware(
@@ -77,7 +78,10 @@ async def login_for_access_token(username:str=Form(...), password:str=Form(...))
     access_token = create_access_token(
         data={"sub": str(user["_id"])}, expires_delta=access_token_expires
     )
-    response = Response(content="Login successful", media_type="application/json")
+    response = JSONResponse(
+        content={"message": "Login successful", "accessToken": access_token},
+        status_code=status.HTTP_200_OK
+    )
     response.set_cookie(key="accessToken", value=access_token, httponly=True)
     return response
 
