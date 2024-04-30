@@ -40,7 +40,7 @@ app.add_middleware(
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     try:
-        payload = jwt.decode(token, ACCESS_SECRET_TOKEN, algorithms=[ALGORITHM])
+        payload = jwt.decode(ftoken, ACCESS_SECRET_TOKEN, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
@@ -103,19 +103,30 @@ async def get_cart_items(user_id: str = Depends(get_current_user)):
     cart_items = user.get("cart", [])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return [{"serviceId": item["serviceId"], "price": item["price"]} for item in cart_items]
+    return [{"_id": str(item["_id"]), "serviceId": item["serviceId"], "price": item["price"]} for item in cart_items]
 
 @app.delete("/users/cart/{item_id}")
 async def remove_item_from_cart(item_id: str, user_id: str = Depends(get_current_user)):
     user_oid = ObjectId(user_id)
-    item_oid = ObjectId(item_id)
     result = await db.user_db.update_one(
         {"_id": user_oid},
-        {"$pull": {"cart": {"_id": item_oid}}}
+        {"$pull": {"cart": {"serviceId": item_id}}}
     )
     if result.modified_count == 1:
         return {"message": "Item removed successfully"}
     raise HTTPException(status_code=404, detail="Item not found or already removed")
+
+@app.delete("/users/cart/")
+async def remove_all_item_from_cart(user_id: str = Depends(get_current_user)):
+    user_oid = ObjectId(user_id)
+    result = await db.user_db.update_one(
+        {"_id": user_oid},
+        {"$set": {"cart": []}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="No items found in cart or user not found")
+    
+    return {"message": "All items in cart removed successfully"}
 
 @app.get("/getAllUsers")
 async def get_all_users():

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, Depends, status
+from fastapi import FastAPI, HTTPException, Response, Depends, status, Form
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
 from pymongo import MongoClient
@@ -66,8 +66,8 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 #form req
 @app.post("/login", response_model=str)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+async def login_for_access_token(username:str=Form(...), password:str=Form(...)):
+    user = authenticate_user(username, password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -5,6 +5,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+import requests
+import httpx
 
 class Service(BaseModel):
     serviceId: str
@@ -12,6 +14,9 @@ class Service(BaseModel):
     description: str
     price: float
     duration: int
+
+class Review(BaseModel):
+    text: str
 
 app = FastAPI()
 app.add_middleware(
@@ -69,3 +74,36 @@ async def update_service(serviceId: str, service: ServiceModel):
     # Get the updated service data
     updated_service = await db.service_db.find_one({"serviceId": serviceId})
     return updated_service
+
+@app.get("/product/{serviceId}", response_model=ServiceModel)
+async def get_product_detail(serviceId: str):
+    service = await db.service_db.find_one({"serviceId": serviceId})
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    return service
+
+@app.post("/postReview/")
+async def post_review(review: Review):
+    url = "https://api.aiforthai.in.th/ssense"
+    data = {'text': review.text}
+    headers = {'Apikey': "3vA3wfXxuLwX9L7vvCluzFViqbiRtErj"}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, data=data, headers=headers)
+            response.raise_for_status()
+            result_data = response.json()
+        except httpx.RequestError as exc:
+            print(f"An error occurred while requesting {exc.request.url!r}.")
+            raise HTTPException(status_code=400, detail="Error connecting to sentiment analysis service")
+        except httpx.HTTPStatusError as exc:
+            print(f"Error response {exc.response.status_code} while requesting {exc.request.url!r}.")
+            raise HTTPException(status_code=exc.response.status_code, detail="Sentiment analysis service returned an error")
+
+    sentiment = result_data.get('sentiment', {})
+    document = {
+        'text': review.text,
+        'sentiment': sentiment
+    }
+    insert_result = await db.review_db.insert_one(document)
+    return {"mongo_id": str(insert_result.inserted_id), "text": review.text}
