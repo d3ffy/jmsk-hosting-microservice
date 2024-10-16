@@ -6,3 +6,5 @@ RUN apt-get update \
     && apt-get clean
 RUN pip install -r /app/requirements.txt \
     && rm -rf /root/.cache/pip
+EXPOSE 8002
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
